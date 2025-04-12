@@ -37,6 +37,8 @@ docker run -it -p 5000:5000 azure-benchmark
 4. View Results: After deployment completes, navigate to:  http://localhost:5000 Your Results should look like this
 
 5. ![output](https://github.com/user-attachments/assets/e0a5e034-59dc-4c5b-8cfd-9d363b6bc49c)
+![output2](https://github.com/user-attachments/assets/c7592c80-1b9d-45de-a79f-286ef82cdc79)
+
 
 6. Check the "versions" folder for earlier script versions and development observations. This reflects the iterative approach taken during development.
 
