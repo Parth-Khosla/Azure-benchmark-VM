@@ -11,7 +11,7 @@ This project automates the deployment of virtual machines across multiple Azure 
 - Exposes graph over a local web server (Flask)
 - No volume binds required
 
-> This was built as part of a mini-project for my Bachelor's in Computer Science (Cloud Specialization). The goal was to automate infrastructure deployment and benchmark performance — and it went beyond expectations by being fully containerized and web-served!
+> This was built as part of a mini-project for my Bachelor's in Computer Science (Cloud Specialization) for my 6th semester. The goal was to automate infrastructure deployment and benchmark performance — and it went beyond expectations by being fully containerized and web-served!
 
 ## 🚀 Technologies Used
 
@@ -21,6 +21,35 @@ This project automates the deployment of virtual machines across multiple Azure 
 - **Matplotlib**
 - **Flask (for serving output)**
 - **Docker**
+
+## 🧰 Requirements & Setup
+
+
+   ## 📋 Requirements(For running outside Docker)
+
+   If you want to run this project **outside Docker**, you'll need the following installed:
+
+   - Python 3.11+
+   - Azure CLI
+   - pip packages:
+     - azure-identity
+     - azure-mgmt-resource
+     - azure-mgmt-compute
+     - azure-mgmt-network
+     - azure-mgmt-subscription
+     - tabulate
+     - matplotlib
+     - flask
+
+
+   ## 📋 Requirements(For running inside Docker)
+
+   - Docker (to build and run the container)
+   - Azure account (for authentication)
+   - Internet connection (for CLI + SDK interactions)
+
+   > All other dependencies are installed inside the container.
+
 
 ## 🐳 Running the Project (Dockerized)
 
@@ -36,11 +65,11 @@ docker run -it -p 5000:5000 azure-benchmark
 
 4. View Results: After deployment completes, navigate to:  http://localhost:5000 Your Results should look like this
 
-5. ![output](https://github.com/user-attachments/assets/e0a5e034-59dc-4c5b-8cfd-9d363b6bc49c)
+![output](https://github.com/user-attachments/assets/e0a5e034-59dc-4c5b-8cfd-9d363b6bc49c)
 ![output2](https://github.com/user-attachments/assets/c7592c80-1b9d-45de-a79f-286ef82cdc79)
 
 
-6. Check the "versions" folder for earlier script versions and development observations. This reflects the iterative approach taken during development.
+5. Check the "versions" folder for earlier script versions and development observations. This reflects the iterative approach taken during development.
 
 
 Future Plans:
