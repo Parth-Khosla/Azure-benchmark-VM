@@ -1,4 +1,4 @@
-# Azure VM Multi-Region Deployment Benchmark 🔧📊
+# Azure VM Multi-Region Deployment Benchmark. 🔧📊
 
 This project automates the deployment of virtual machines across multiple Azure regions, logs deployment durations, and visualizes the results with a bar chart — all inside a containerized environment with web-based Azure CLI authentication. 🐳✨
 
