@@ -7,64 +7,6 @@ from azure.mgmt.resource import ResourceManagementClient
 from azure.mgmt.subscription import SubscriptionClient
 from tabulate import tabulate
 
-# Existing VM configurations
-VM_IMAGES = {
-    '1': {
-        'publisher': 'Canonical',
-        'offer': 'UbuntuServer',
-        'sku': '18.04-LTS',
-        'version': 'latest'
-    },
-    '2': {
-        'publisher': 'MicrosoftWindowsServer',
-        'offer': 'WindowsServer',
-        'sku': '2019-Datacenter',
-        'version': 'latest'
-    },
-    '3': {
-        'publisher': 'Debian',
-        'offer': 'debian-10',
-        'sku': '10',
-        'version': 'latest'
-    }
-}
-
-VM_SIZES = {
-    '1': 'Standard_B1s',  # 1 vCPU, 1 GB RAM
-    '2': 'Standard_B2s',  # 2 vCPU, 4 GB RAM
-    '3': 'Standard_D2s_v3'  # 2 vCPU, 8 GB RAM
-}
-
-# Azure regions with friendly names
-REGIONS = {
-    '1': ('eastus', 'East US'),
-    '2': ('westus', 'West US'),
-    '3': ('northeurope', 'North Europe'),
-    '4': ('westeurope', 'West Europe'),
-    '5': ('southeastasia', 'Southeast Asia'),
-    '6': ('eastasia', 'East Asia'),
-    '7': ('centralus', 'Central US'),
-    '8': ('westus2', 'West US 2'),
-    '9': ('ukwest', 'UK West'),
-    '10': ('uksouth', 'UK South')
-}
-
-def print_options(options_dict, title):
-    print(f"\n{title}:")
-    headers = ["Option", "Details"]
-    rows = []
-    
-    for key, value in options_dict.items():
-        if isinstance(value, dict):
-            details = f"{value['publisher']} - {value['offer']} {value['sku']}"
-        elif isinstance(value, tuple):
-            details = f"{value[1]} ({value[0]})"
-        else:
-            details = value
-        rows.append([key, details])
-    
-    print(tabulate(rows, headers=headers, tablefmt="grid"))
-
 def get_credentials():
     return AzureCliCredential()
 
@@ -81,6 +23,92 @@ def list_subscriptions(credential):
     print("\nAvailable Subscriptions:")
     print(tabulate(rows, headers=headers, tablefmt="grid"))
     return {str(idx): sub.subscription_id for idx, sub in enumerate(subscriptions, 1)}
+
+def list_regions(credential, subscription_id):
+    subscription_client = SubscriptionClient(credential)
+    locations = list(subscription_client.subscriptions.list_locations(subscription_id))
+    
+    headers = ["Option", "Name", "Display Name"]
+    rows = []
+    
+    for idx, location in enumerate(locations, 1):
+        rows.append([str(idx), location.name, location.display_name])
+    
+    print("\nAvailable Regions:")
+    print(tabulate(rows, headers=headers, tablefmt="grid"))
+    return {str(idx): location.name for idx, location in enumerate(locations, 1)}
+
+def list_vm_sizes(credential, subscription_id, location):
+    compute_client = ComputeManagementClient(credential, subscription_id)
+    vm_sizes = list(compute_client.virtual_machine_sizes.list(location))
+    
+    headers = ["Option", "Size", "vCPUs", "Memory (GB)", "Max Data Disks"]
+    rows = []
+    
+    for idx, size in enumerate(vm_sizes, 1):
+        rows.append([
+            str(idx),
+            size.name,
+            size.number_of_cores,
+            size.memory_in_mb / 1024,
+            size.max_data_disk_count
+        ])
+    
+    print("\nAvailable VM Sizes:")
+    print(tabulate(rows, headers=headers, tablefmt="grid"))
+    return {str(idx): size.name for idx, size in enumerate(vm_sizes, 1)}
+
+def list_vm_images(credential, subscription_id, location):
+    compute_client = ComputeManagementClient(credential, subscription_id)
+    
+    # Get popular publishers
+    publishers = [
+        'Canonical',
+        'MicrosoftWindowsServer',
+        'RedHat',
+        'SUSE',
+        'debian'
+    ]
+    
+    images = []
+    for publisher in publishers:
+        try:
+            offers = compute_client.virtual_machine_images.list_offers(
+                location,
+                publisher
+            )
+            
+            for offer in offers:
+                skus = compute_client.virtual_machine_images.list_skus(
+                    location,
+                    publisher,
+                    offer.name
+                )
+                
+                for sku in skus:
+                    images.append({
+                        'publisher': publisher,
+                        'offer': offer.name,
+                        'sku': sku.name,
+                        'version': 'latest'
+                    })
+        except Exception as e:
+            continue
+    
+    headers = ["Option", "Publisher", "Offer", "SKU"]
+    rows = []
+    
+    for idx, image in enumerate(images, 1):
+        rows.append([
+            str(idx),
+            image['publisher'],
+            image['offer'],
+            image['sku']
+        ])
+    
+    print("\nAvailable VM Images:")
+    print(tabulate(rows, headers=headers, tablefmt="grid"))
+    return {str(idx): image for idx, image in enumerate(images, 1)}
 
 def list_resource_groups(credential, subscription_id):
     resource_client = ResourceManagementClient(credential, subscription_id)
@@ -106,7 +134,7 @@ def list_virtual_machines(credential, subscription_id):
     for vm in vms:
         rows.append([
             vm.name,
-            vm.id.split('/')[4],  # Extract resource group from ID
+            vm.id.split('/')[4],
             vm.location,
             vm.hardware_profile.vm_size,
             vm.provisioning_state
@@ -238,13 +266,12 @@ def main():
     list_virtual_machines(credential, subscription_id)
     
     # Select region
-    print_options(REGIONS, "Available Regions")
+    regions_dict = list_regions(credential, subscription_id)
     region_choice = input("\nSelect region (enter number): ")
-    region = REGIONS.get(region_choice)
-    if not region:
+    location = regions_dict.get(region_choice)
+    if not location:
         print("Invalid region selection.")
         return
-    location = region[0]  # Use the region code, not the friendly name
 
     # List existing resource groups and option to create new
     existing_rgs = list_resource_groups(credential, subscription_id)
@@ -270,17 +297,19 @@ def main():
     vm_name = input("\nEnter VM name: ")
 
     # Select VM size
-    print_options(VM_SIZES, "Available VM Sizes")
+    vm_sizes_dict = list_vm_sizes(credential, subscription_id, location)
     vm_size_choice = input("\nSelect VM size (enter number): ")
-    vm_size = VM_SIZES.get(vm_size_choice)
+    vm_size = vm_sizes_dict.get(vm_size_choice)
+    if not vm_size:
+        print("Invalid VM size selection.")
+        return
 
     # Select VM image
-    print_options(VM_IMAGES, "Available VM Images")
+    vm_images_dict = list_vm_images(credential, subscription_id, location)
     vm_image_choice = input("\nSelect VM image (enter number): ")
-    vm_image = VM_IMAGES.get(vm_image_choice)
-
-    if not all([vm_size, vm_image]):
-        print("Invalid VM size or image selection.")
+    vm_image = vm_images_dict.get(vm_image_choice)
+    if not vm_image:
+        print("Invalid VM image selection.")
         return
     
     # Create infrastructure
