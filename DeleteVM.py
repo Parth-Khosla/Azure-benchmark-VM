@@ -61,27 +61,17 @@ def fetch_resources_in_group(resource_group):
         print(f"Error fetching resources: {e.stderr}")
         return {}
 
-def check_and_detach_nic(resource_name, resource_group):
+def delete_resource_group(resource_group):
     """
-    Checks if a NIC is attached to any VM and detaches it before deletion.
+    Deletes an entire resource group using Azure CLI.
     """
     try:
-        # Check if the NIC is attached to a VM
-        command = f"az network nic show --name {resource_name} --resource-group {resource_group} --output json"
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-        nic_info = json.loads(result.stdout)
-
-        # If the NIC is attached to a VM, detach it
-        if "ipConfigurations" in nic_info and nic_info["ipConfigurations"]:
-            print(f"NIC '{resource_name}' is attached to a VM. Detaching...")
-            # This step involves disassociating the NIC (additional CLI commands may be needed for VM detachment)
-            command = f"az network nic ip-config update --name ipconfig1 --nic-name {resource_name} --resource-group {resource_group} --remove ipConfigurations"
-            subprocess.run(command, shell=True, check=True)
-            print(f"NIC '{resource_name}' successfully detached.")
-        else:
-            print(f"NIC '{resource_name}' is not attached to any VM.")
+        print(f"Deleting resource group '{resource_group}' and all its resources...")
+        command = f"az group delete --name {resource_group} --yes --no-wait"
+        subprocess.run(command, shell=True, check=True)
+        print(f"Resource group '{resource_group}' deletion initiated.")
     except subprocess.CalledProcessError as e:
-        print(f"Error checking or detaching NIC: {e.stderr}")
+        print(f"Error deleting resource group: {e.stderr}")
 
 def delete_resources(resources):
     """
@@ -93,16 +83,11 @@ def delete_resources(resources):
             resource_type = resource["type"]
             resource_group = resource["resourceGroup"]
 
-            # Perform checks and detach NICs before deletion
-            if "Microsoft.Network/networkInterfaces" in resource_type:
-                check_and_detach_nic(name, resource_group)
-
             # Delete the resource
             print(f"Deleting resource '{name}' of type '{resource_type}' in resource group '{resource_group}'...")
             command = f"az resource delete --name {name} --resource-group {resource_group} --resource-type {resource_type} --verbose"
             subprocess.run(command, shell=True, check=True)
             print(f"Resource '{name}' successfully deleted.")
-
         except subprocess.CalledProcessError as e:
             print(f"Error deleting resource: {e.stderr}")
 
@@ -121,10 +106,25 @@ def main():
         print("Invalid resource group selection.")
         return
 
+    # Ask user if they want to delete the entire resource group
+    action = input(f"\nWould you like to delete the entire Resource Group '{resource_group}'? (yes/no): ")
+    if action.lower() == "yes":
+        delete_resource_group(resource_group)
+        return
+
     # Fetch resources in the selected resource group
     resources = fetch_resources_in_group(resource_group)
     if not resources:
         return
+
+    # Display deletion order guidance
+    print("\nImportant Info:")
+    print("Please remove resources in the following order to avoid dependency issues:")
+    print("1. Virtual Machines (VM)")
+    print("2. Disks")
+    print("3. Network Interfaces (NIC)")
+    print("4. Virtual Networks (V-net)")
+    print("5. IP Addresses")
 
     # Select resources to delete
     resource_choices = input("\nEnter the numbers of the resources to delete (comma-separated): ").split(",")
@@ -142,6 +142,7 @@ def main():
 
     # Delete selected resources
     delete_resources(selected_resources)
+
 
 if __name__ == "__main__":
     main()
