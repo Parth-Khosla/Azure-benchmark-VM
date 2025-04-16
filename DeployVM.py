@@ -10,6 +10,17 @@ from tabulate import tabulate
 def get_credentials():
     return AzureCliCredential()
 
+def validate_vm_name(name):
+    # Remove invalid characters and ensure it's not longer than 15 characters
+    valid_name = ''.join(c for c in name if c.isalnum() or c == '-')
+    valid_name = valid_name[:15]
+    
+    # Ensure it's not entirely numeric and starts with a letter
+    if valid_name.isnumeric() or not valid_name[0].isalpha():
+        valid_name = 'vm-' + valid_name
+    
+    return valid_name
+
 def list_subscriptions(credential):
     subscription_client = SubscriptionClient(credential)
     subscriptions = list(subscription_client.subscriptions.list())
@@ -157,6 +168,9 @@ def create_infrastructure(
     network_client = NetworkManagementClient(credential, subscription_id)
     compute_client = ComputeManagementClient(credential, subscription_id)
 
+    # Validate and format VM name
+    computer_name = validate_vm_name(vm_name)
+
     # Create resource group
     print(f"Creating Resource Group '{resource_group_name}'...")
     resource_client.resource_groups.create_or_update(
@@ -226,7 +240,7 @@ def create_infrastructure(
             }
         },
         'os_profile': {
-            'computer_name': vm_name,
+            'computer_name': computer_name,  # Use validated name here
             'admin_username': 'azureuser',
             'admin_password': 'Password123!'  # In production, use secure password handling
         },
