@@ -240,7 +240,7 @@ def create_infrastructure(
             }
         },
         'os_profile': {
-            'computer_name': computer_name,  # Use validated name here
+            'computer_name': computer_name,
             'admin_username': 'azureuser',
             'admin_password': 'Password123!'  # In production, use secure password handling
         },
@@ -257,14 +257,39 @@ def create_infrastructure(
 
     print(f"\nVM '{vm_name}' has been successfully created!")
 
-def main():
-    print("Azure VM Deployment Script")
-    print("=" * 30)
+def deploy_to_regions(credential, subscription_id, regions, vm_config):
+    """
+    Deploy the same VM configuration across multiple regions
+    
+    Args:
+        credential: Azure credentials
+        subscription_id: Target subscription ID
+        regions: List of region names to deploy to
+        vm_config: Dictionary containing VM configuration
+    """
+    for region in regions:
+        # Create region-specific names
+        region_rg_name = f"{vm_config['resource_group_name']}-{region}"
+        region_vm_name = f"{vm_config['vm_name']}-{region}"
+        
+        print(f"\nDeploying to region: {region}")
+        create_infrastructure(
+            credential=credential,
+            subscription_id=subscription_id,
+            resource_group_name=region_rg_name,
+            location=region,
+            vm_name=region_vm_name,
+            vm_size=vm_config['vm_size'],
+            vm_image=vm_config['vm_image']
+        )
 
-    # Get credentials
+def main():
+    print("Azure Multi-Region VM Deployment Script")
+    print("=" * 40)
+
     credential = get_credentials()
     
-    # List and select subscription
+    # Get subscription
     subscriptions_dict = list_subscriptions(credential)
     if not subscriptions_dict:
         print("No subscriptions found. Please check your Azure login.")
@@ -279,39 +304,23 @@ def main():
     # List existing VMs
     list_virtual_machines(credential, subscription_id)
     
-    # Select region
+    # Get base configuration first
+    print("\n=== Base VM Configuration ===")
+    
+    # Get VM name base
+    vm_name_base = input("\nEnter base VM name: ")
+    
+    # Get base resource group name
+    resource_group_base = input("Enter base resource group name: ")
+    
+    # Get regions first to use for VM size listing
     regions_dict = list_regions(credential, subscription_id)
-    region_choice = input("\nSelect region (enter number): ")
-    location = regions_dict.get(region_choice)
-    if not location:
-        print("Invalid region selection.")
+    if not regions_dict:
+        print("No regions available.")
         return
-
-    # List existing resource groups and option to create new
-    existing_rgs = list_resource_groups(credential, subscription_id)
-    print("\nResource Group Options:")
-    print("1. Use existing resource group")
-    print("2. Create new resource group")
-    rg_option = input("\nSelect option (1 or 2): ")
-    
-    if rg_option == "1":
-        if not existing_rgs:
-            print("No existing resource groups found. Creating new one.")
-            resource_group_name = input("Enter new resource group name: ")
-        else:
-            rg_choice = input("Select resource group (enter number): ")
-            resource_group_name = existing_rgs.get(rg_choice)
-            if not resource_group_name:
-                print("Invalid resource group selection.")
-                return
-    else:
-        resource_group_name = input("Enter new resource group name: ")
-    
-    # Get VM name
-    vm_name = input("\nEnter VM name: ")
-
-    # Select VM size
-    vm_sizes_dict = list_vm_sizes(credential, subscription_id, location)
+        
+    # Select VM size using first region (sizes are generally consistent across regions)
+    vm_sizes_dict = list_vm_sizes(credential, subscription_id, list(regions_dict.values())[0])
     vm_size_choice = input("\nSelect VM size (enter number): ")
     vm_size = vm_sizes_dict.get(vm_size_choice)
     if not vm_size:
@@ -319,23 +328,35 @@ def main():
         return
 
     # Select VM image
-    vm_images_dict = list_vm_images(credential, subscription_id, location)
+    vm_images_dict = list_vm_images(credential, subscription_id, list(regions_dict.values())[0])
     vm_image_choice = input("\nSelect VM image (enter number): ")
     vm_image = vm_images_dict.get(vm_image_choice)
     if not vm_image:
         print("Invalid VM image selection.")
         return
+
+    # Select target regions
+    print("\nSelect regions (comma-separated numbers, e.g., 1,2,3): ")
+    region_choices = input().split(',')
+    selected_regions = [regions_dict.get(choice.strip()) for choice in region_choices]
+    selected_regions = [r for r in selected_regions if r]  # Remove any invalid selections
     
-    # Create infrastructure
-    create_infrastructure(
-        credential,
-        subscription_id,
-        resource_group_name,
-        location,
-        vm_name,
-        vm_size,
-        vm_image
-    )
+    if not selected_regions:
+        print("No valid regions selected.")
+        return
+
+    # Create VM configuration dictionary
+    vm_config = {
+        'vm_name': vm_name_base,
+        'resource_group_name': resource_group_base,
+        'vm_size': vm_size,
+        'vm_image': vm_image
+    }
+
+    # Deploy to all selected regions
+    deploy_to_regions(credential, subscription_id, selected_regions, vm_config)
+    
+    print("\nMulti-region deployment completed!")
 
 if __name__ == "__main__":
     main()
