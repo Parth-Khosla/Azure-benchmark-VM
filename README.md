@@ -1,12 +1,14 @@
 # Azure VM Multi-Region Deployment Benchmark. 🔧📊
 
-This project automates the deployment of virtual machines across multiple Azure regions, logs deployment durations, and visualizes the results with a bar chart — all inside a containerized environment with web-based Azure CLI authentication. 🐳✨
+This project automates the deployment of virtual machines across multiple Azure regions, logs deployment durations, and visualizes the results with a bar chart — all inside a containerized environment with web-based Azure CLI authentication. Updated With a latency Measurement Tool for Existing VMs. 🐳✨
 
 ## 📦 Project Overview
 
 - Deploys VMs across user-selected Azure regions
 - Measures and logs deployment time for each region
 - Generates a graph comparing deployment durations
+- Measures Latency For Existing VMs provided Port 22 or Port 3389 is exposed
+- Plots Graph for Measure Latency Information for Easy Visual Comparison
 - Runs in a Docker container with Azure CLI installed
 - Exposes graph over a local web server (Flask)
 - No volume binds required
@@ -59,14 +61,16 @@ This project automates the deployment of virtual machines across multiple Azure 
    docker build -t azure-benchmark .
 
 2. Run the container:
-docker run -it -p 5000:5000 azure-benchmark
+docker run -it -p 5000:5000 -p 5001:5001 azure-benchmark
 
 3. Login to Azure CLI when prompted: The script uses az login, which will prompt you to authenticate via the browser.
 
-4. View Results: After deployment completes, navigate to:  http://localhost:5000 Your Results should look like this
+4. View Results: After deployment completes, navigate to:  http://localhost:5000(For Time Taken For Deployment) or http://localhost:5001(For Latency Test) Your Results should look like this
 
 ![output](https://github.com/user-attachments/assets/e0a5e034-59dc-4c5b-8cfd-9d363b6bc49c)
 ![output2](https://github.com/user-attachments/assets/c7592c80-1b9d-45de-a79f-286ef82cdc79)
+![latency_graph](https://github.com/user-attachments/assets/c1b08883-8e0f-43cb-afab-807e46c6d08c)
+
 
 
 5. Check the "versions" folder for earlier script versions and development observations. This reflects the iterative approach taken during development.
