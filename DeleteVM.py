@@ -1,6 +1,7 @@
 import subprocess
 import json
 from tabulate import tabulate
+from time import time
 
 def fetch_resource_groups():
     """
@@ -32,28 +33,37 @@ def fetch_resource_groups():
         print(f"Error fetching resource groups: {e.stderr}")
         return {}
 
-def fetch_resources_in_group(resource_group):
+def fetch_resources_in_groups(resource_groups):
     """
-    Fetches all resources in a specific resource group.
+    Fetches all resources in specified resource groups.
     """
     try:
-        command = f"az resource list --resource-group {resource_group} --output json"
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
-        resources = json.loads(result.stdout)
+        all_resources = []
+        for rg in resource_groups:
+            command = f"az resource list --resource-group {rg} --output json"
+            result = subprocess.run(command, shell=True, capture_output=True, text=True, check=True)
+            resources = json.loads(result.stdout)
+            all_resources.extend(resources)
 
-        if not resources:
-            print(f"No resources found in resource group '{resource_group}'.")
-            return []
+        if not all_resources:
+            print(f"No resources found in the selected resource groups.")
+            return {}
 
-        headers = ["Option", "Name", "Type", "Location"]
+        headers = ["Option", "Name", "Type", "Resource Group", "Location"]
         rows = []
         resource_details = {}
 
-        for idx, resource in enumerate(resources, 1):
-            rows.append([idx, resource["name"], resource["type"], resource["location"]])
+        for idx, resource in enumerate(all_resources, 1):
+            rows.append([
+                idx, 
+                resource["name"], 
+                resource["type"], 
+                resource["resourceGroup"],
+                resource["location"]
+            ])
             resource_details[str(idx)] = resource
 
-        print(f"\nResources in Resource Group '{resource_group}':")
+        print("\nResources in Selected Resource Groups:")
         print(tabulate(rows, headers=headers, tablefmt="grid"))
         return resource_details
 
@@ -61,17 +71,24 @@ def fetch_resources_in_group(resource_group):
         print(f"Error fetching resources: {e.stderr}")
         return {}
 
-def delete_resource_group(resource_group):
+def delete_resource_groups(resource_groups):
     """
-    Deletes an entire resource group using Azure CLI.
+    Deletes multiple resource groups using Azure CLI.
     """
-    try:
-        print(f"Deleting resource group '{resource_group}' and all its resources...")
-        command = f"az group delete --name {resource_group} --yes --no-wait"
-        subprocess.run(command, shell=True, check=True)
-        print(f"Resource group '{resource_group}' deletion initiated.")
-    except subprocess.CalledProcessError as e:
-        print(f"Error deleting resource group: {e.stderr}")
+    for rg in resource_groups:
+        try:
+            print(f"\nDeleting resource group '{rg}' and all its resources...")
+            start_time = time()
+
+            command = f"az group delete --name {rg} --yes"
+            subprocess.run(command, shell=True, check=True)
+
+            end_time = time()
+            total_time = end_time - start_time
+            print(f"Resource group '{rg}' successfully deleted.")
+            print(f"Total time taken for deletion: {total_time:.2f} seconds.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error deleting resource group '{rg}': {e.stderr}")
 
 def delete_resources(resources):
     """
@@ -83,7 +100,6 @@ def delete_resources(resources):
             resource_type = resource["type"]
             resource_group = resource["resourceGroup"]
 
-            # Delete the resource
             print(f"Deleting resource '{name}' of type '{resource_type}' in resource group '{resource_group}'...")
             command = f"az resource delete --name {name} --resource-group {resource_group} --resource-type {resource_type} --verbose"
             subprocess.run(command, shell=True, check=True)
@@ -95,54 +111,73 @@ def main():
     print("Azure Resource Management Script")
     print("=" * 30)
 
-    # Fetch resource groups
-    resource_groups = fetch_resource_groups()
-    if not resource_groups:
-        return
+    while True:
+        print("\nOptions:")
+        print("1. Delete entire resource groups")
+        print("2. Delete specific resources across resource groups")
+        print("3. Exit")
+        
+        choice = input("\nSelect an option (1-3): ")
 
-    rg_choice = input("\nSelect a resource group by number: ")
-    resource_group = resource_groups.get(rg_choice)
-    if not resource_group:
-        print("Invalid resource group selection.")
-        return
+        if choice == "3":
+            break
 
-    # Ask user if they want to delete the entire resource group
-    action = input(f"\nWould you like to delete the entire Resource Group '{resource_group}'? (yes/no): ")
-    if action.lower() == "yes":
-        delete_resource_group(resource_group)
-        return
+        # Fetch resource groups
+        resource_groups = fetch_resource_groups()
+        if not resource_groups:
+            continue
 
-    # Fetch resources in the selected resource group
-    resources = fetch_resources_in_group(resource_group)
-    if not resources:
-        return
+        if choice == "1":
+            # Delete entire resource groups
+            rg_choices = input("\nSelect resource groups to delete (comma-separated numbers): ").split(",")
+            selected_rgs = [resource_groups.get(choice.strip()) for choice in rg_choices if resource_groups.get(choice.strip())]
 
-    # Display deletion order guidance
-    print("\nImportant Info:")
-    print("Please remove resources in the following order to avoid dependency issues:")
-    print("1. Virtual Machines (VM)")
-    print("2. Disks")
-    print("3. Network Interfaces (NIC)")
-    print("4. Virtual Networks (V-net)")
-    print("5. IP Addresses")
+            if not selected_rgs:
+                print("No valid resource groups selected.")
+                continue
 
-    # Select resources to delete
-    resource_choices = input("\nEnter the numbers of the resources to delete (comma-separated): ").split(",")
-    selected_resources = [resources.get(choice.strip()) for choice in resource_choices if resources.get(choice.strip())]
+            confirm = input(f"\nAre you sure you want to delete these resource groups and ALL their resources?\n"
+                          f"Selected groups: {', '.join(selected_rgs)}\n"
+                          f"Type 'yes' to confirm: ")
+            
+            if confirm.lower() == "yes":
+                delete_resource_groups(selected_rgs)
 
-    if not selected_resources:
-        print("No valid resources selected for deletion.")
-        return
+        elif choice == "2":
+            # Delete specific resources
+            rg_choices = input("\nSelect resource groups to view resources from (comma-separated numbers): ").split(",")
+            selected_rgs = [resource_groups.get(choice.strip()) for choice in rg_choices if resource_groups.get(choice.strip())]
 
-    # Confirm deletion
-    confirm = input(f"\nAre you sure you want to delete the selected resources? (yes/no): ")
-    if confirm.lower() != "yes":
-        print("Deletion canceled.")
-        return
+            if not selected_rgs:
+                print("No valid resource groups selected.")
+                continue
 
-    # Delete selected resources
-    delete_resources(selected_resources)
+            # Fetch and display resources from selected resource groups
+            resources = fetch_resources_in_groups(selected_rgs)
+            if not resources:
+                continue
 
+            # Display deletion order guidance
+            print("\nImportant Info:")
+            print("Please remove resources in the following order to avoid dependency issues:")
+            print("1. Virtual Machines (VM)")
+            print("2. Disks")
+            print("3. Network Interfaces (NIC)")
+            print("4. Virtual Networks (V-net)")
+            print("5. IP Addresses")
+
+            # Select resources to delete
+            resource_choices = input("\nEnter the numbers of the resources to delete (comma-separated): ").split(",")
+            selected_resources = [resources.get(choice.strip()) for choice in resource_choices if resources.get(choice.strip())]
+
+            if not selected_resources:
+                print("No valid resources selected for deletion.")
+                continue
+
+            # Confirm deletion
+            confirm = input(f"\nAre you sure you want to delete the selected resources? (yes/no): ")
+            if confirm.lower() == "yes":
+                delete_resources(selected_resources)
 
 if __name__ == "__main__":
     main()
