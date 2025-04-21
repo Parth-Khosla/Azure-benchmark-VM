@@ -269,6 +269,8 @@ def create_infrastructure(
     vm_size,
     vm_image
 ):
+    import datetime
+
     resource_client = ResourceManagementClient(credential, subscription_id)
     network_client = NetworkManagementClient(credential, subscription_id)
     compute_client = ComputeManagementClient(credential, subscription_id)
@@ -326,6 +328,11 @@ def create_infrastructure(
     ).result()
 
     print(f"Creating VM '{vm_name}'...")
+
+    # Start timing the deployment
+    start_time = datetime.datetime.utcnow()
+    print(f"Start Time (UTC): {start_time.isoformat()}")
+
     vm_parameters = {
         'location': location,
         'hardware_profile': {'vm_size': vm_size},
@@ -346,7 +353,7 @@ def create_infrastructure(
         'os_profile': {
             'computer_name': computer_name,
             'admin_username': 'azureuser',
-            'admin_password': 'Password123!'  # In production, use secure password handling
+            'admin_password': 'Password123!'  # Use secure handling in prod
         },
         'network_profile': {
             'network_interfaces': [{'id': nic.id}]
@@ -359,7 +366,40 @@ def create_infrastructure(
         vm_parameters
     ).result()
 
+    # End timing the deployment
+    end_time = datetime.datetime.utcnow()
+    duration = end_time - start_time
+
+    print(f"End Time (UTC): {end_time.isoformat()}")
+    print(f"Deployment Duration: {duration.total_seconds():.2f} seconds")
+
+    # Log the deployment
+    log_deployment_time(vm_name, location, start_time, end_time, duration)
+
     print(f"\nVM '{vm_name}' has been successfully created!")
+
+def log_deployment_time(vm_name, location, start_time, end_time, duration):
+    log_entry = {
+        "vm_name": vm_name,
+        "location": location,
+        "start_time_utc": start_time.isoformat(),
+        "end_time_utc": end_time.isoformat(),
+        "duration_seconds": duration.total_seconds()
+    }
+
+    log_file = "deployment_log.json"
+    if os.path.exists(log_file):
+        with open(log_file, "r") as f:
+            data = json.load(f)
+    else:
+        data = []
+
+    data.append(log_entry)
+
+    with open(log_file, "w") as f:
+        json.dump(data, f, indent=4)
+
+    print(f"Deployment log saved to '{log_file}' 📝")
 
 def deploy_to_regions(credential, subscription_id, regions, vm_config):
     for region in regions:
@@ -378,6 +418,10 @@ def deploy_to_regions(credential, subscription_id, regions, vm_config):
         )
 
 def main():
+        # Clear previous logs (optional)
+    if os.path.exists("deployment_log.json"):
+        os.remove("deployment_log.json")
+
     print("Azure Multi-Region VM Deployment Script")
     print("=" * 40)
 
@@ -437,6 +481,31 @@ def main():
     }
 
     deploy_to_regions(credential, subscription_id, selected_regions, vm_config)
+
+        # After deployment, plot the results
+    import matplotlib.pyplot as plt
+
+    log_file = "deployment_log.json"
+    if not os.path.exists(log_file):
+        print(f"Error: The file '{log_file}' was not found.")
+    else:
+        with open(log_file, 'r') as f:
+            logs = json.load(f)
+
+        vm_names = [entry['vm_name'] for entry in logs]
+        durations = [entry['duration_seconds'] for entry in logs]
+
+        plt.figure(figsize=(10, 6))
+        plt.bar(vm_names, durations, color='skyblue')
+        plt.title('VM Deployment Duration Comparison by Region', fontsize=14)
+        plt.xlabel('VM Name', fontsize=12)
+        plt.ylabel('Deployment Duration (seconds)', fontsize=12)
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        #plt.show()
+        plt.savefig("output.png")
+
+
     
     print("\nMulti-region deployment completed!")
 
