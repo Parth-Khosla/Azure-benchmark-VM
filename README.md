@@ -57,6 +57,9 @@ This project automates the deployment of virtual machines across multiple Azure 
 
 1. **Build the image:**
 
+   Directory Structure: ![image](https://github.com/user-attachments/assets/c8172ef1-9266-4e6e-96c7-a214fe1ba33d)
+
+
    ```bash
    docker build -t azure-benchmark .
 
