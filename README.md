@@ -64,7 +64,9 @@ This project automates the deployment of virtual machines across multiple Azure 
    docker build -t azure-benchmark .
 
 2. Run the container:
-docker run -it -p 5000:5000 -p 5001:5001 azure-benchmark
+
+   ```bash
+   docker run -it -p 5000:5000 -p 5001:5001 azure-benchmark
 
 3. Login to Azure CLI when prompted: The script uses az login, which will prompt you to authenticate via the browser.
 
